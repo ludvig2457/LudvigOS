@@ -1,2 +1,2 @@
 # LudvigOS
-Операционая Система
+Operating System
