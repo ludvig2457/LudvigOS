@@ -13,38 +13,114 @@ OS_NAME="LudvigOS"
 BUILD_DIR="$PWD/build"
 ISO_DIR="$PWD/iso"
 
-echo -e "${CYAN}============================================================${RESET}"
-echo -e "${CYAN}           Сборка ${OS_NAME}${RESET}"
-echo -e "${CYAN}============================================================${RESET}"
+# Определяем дистрибутив
+detect_distro() {
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        DISTRO=$ID
+    elif type uname >/dev/null 2>&1; then
+        DISTRO=$(uname -s)
+    else
+        DISTRO="unknown"
+    fi
+}
 
-# ========================================
-# 0️⃣ Проверка инструментов
-# ========================================
-echo -e "${YELLOW}[0️⃣] Проверяем инструменты...${RESET}"
+# Установка пакетов в зависимости от дистрибутива
+install_package() {
+    local pkg="$1"
+    case $DISTRO in
+        arch|manjaro)
+            if [ "$pkg" = "i686-elf-gcc" ]; then
+                if ! command -v yay >/dev/null 2>&1; then
+                    echo -e "${RED}[!] yay не найден. Установите yay вручную.${RESET}"
+                    exit 1
+                fi
+                yay -S --noconfirm i686-elf-gcc i686-elf-binutils
+            else
+                sudo pacman -S --needed "$pkg" --noconfirm
+            fi
+            ;;
+        ubuntu|debian|linuxmint)
+            sudo apt update
+            sudo apt install -y "$pkg"
+            ;;
+        fedora|centos|rhel)
+            sudo dnf install -y "$pkg" || sudo yum install -y "$pkg"
+            ;;
+        opensuse|suse)
+            sudo zypper install -y "$pkg"
+            ;;
+        *)
+            echo -e "${RED}[!] Неподдерживаемый дистрибутив: $DISTRO${RESET}"
+            echo -e "${YELLOW}[!] Установите следующие пакеты вручную:${RESET}"
+            echo -e "    - nasm"
+            echo -e "    - i686-elf-gcc (кросс-компилятор)"
+            echo -e "    - grub2-common"
+            echo -e "    - xorriso"
+            echo -e "    - qemu-system-x86"
+            exit 1
+            ;;
+    esac
+}
 
+# Проверка и установка инструментов
 check_and_install() {
-    local cmd="$1" pkg="$2" aur="$3"
+    local cmd="$1" pkg="${2:-$1}"
     if ! command -v "$cmd" >/dev/null 2>&1; then
         echo -e "${RED}[!] $cmd не найден.${RESET}"
-        if [ "$aur" = true ]; then
-            echo -e "${YELLOW}[!] Устанавливаем $pkg из AUR...${RESET}"
-            yay -S --noconfirm "$pkg"
-        else
-            echo -e "${YELLOW}[!] Устанавливаем $pkg...${RESET}"
-            sudo pacman -S --needed "$pkg" --noconfirm
-        fi
+        echo -e "${YELLOW}[!] Устанавливаем $pkg...${RESET}"
+        install_package "$pkg"
         echo -e "${GREEN}[+] $cmd установлен!${RESET}"
     else
         echo -e "${GREEN}[+] $cmd уже установлен.${RESET}"
     fi
 }
 
-check_and_install yay "yay" true
-check_and_install nasm "nasm" false
-check_and_install i686-elf-g++ "i686-elf-gcc i686-elf-binutils" true
-check_and_install grub-mkrescue "grub" false
-check_and_install xorriso "xorriso" false
-check_and_install qemu-system-i386 "qemu-full" false
+echo -e "${CYAN}============================================================${RESET}"
+echo -e "${CYAN}           Сборка ${OS_NAME}${RESET}"
+echo -e "${CYAN}============================================================${RESET}"
+
+# ========================================
+# 0️⃣ Определяем дистрибутив и проверяем инструменты
+# ========================================
+echo -e "${YELLOW}[0️⃣] Определяем дистрибутив...${RESET}"
+detect_distro
+echo -e "${GREEN}[*] Дистрибутив: $DISTRO${RESET}"
+
+echo -e "${YELLOW}[0️⃣] Проверяем инструменты...${RESET}"
+
+case $DISTRO in
+    arch|manjaro)
+        check_and_install yay "yay"
+        check_and_install nasm "nasm"
+        check_and_install i686-elf-g++ "i686-elf-gcc"
+        check_and_install grub-mkrescue "grub"
+        check_and_install xorriso "xorriso"
+        check_and_install qemu-system-i386 "qemu-full"
+        ;;
+    ubuntu|debian|linuxmint)
+        check_and_install nasm "nasm"
+        check_and_install i686-elf-g++ "gcc-i686-elf"
+        check_and_install grub-mkrescue "grub-common"
+        check_and_install xorriso "xorriso"
+        check_and_install qemu-system-i386 "qemu-system-x86"
+        ;;
+    fedora)
+        check_and_install nasm "nasm"
+        check_and_install i686-elf-g++ "i686-elf-gcc"
+        check_and_install grub-mkrescue "grub2-tools"
+        check_and_install xorriso "xorriso"
+        check_and_install qemu-system-i386 "qemu-system-x86"
+        ;;
+    *)
+        # Для неизвестных дистрибутивов проверяем минимальный набор
+        check_and_install nasm "nasm"
+        check_and_install i686-elf-g++ "i686-elf-gcc"
+        check_and_install grub-mkrescue "grub"
+        check_and_install xorriso "xorriso"
+        check_and_install qemu-system-i386 "qemu"
+        ;;
+esac
 
 echo -e "${GREEN}[*] Все инструменты готовы!${RESET}"
 echo -e "${CYAN}------------------------------------------------------------${RESET}"
@@ -146,64 +222,40 @@ int strcmp(const char* s1, const char* s2) {
     return *(unsigned char*)s1 - *(unsigned char*)s2;
 }
 
-// Input buffer
-char input_buffer[256];
-int input_pos = 0;
-
-void process_command() {
-    if(input_pos == 0) return;
-
+// Execute command directly
+void execute_command(const char* command) {
+    print("LudvigOS> ", 0x0A);
+    print(command, 0x0F);
     print("\n", 0x0A);
 
-    if(strcmp(input_buffer, "help") == 0) {
+    if(strcmp(command, "help") == 0) {
         print("Available commands:\n", 0x0E);
         print("help    - Show this help\n", 0x0E);
         print("clear   - Clear screen\n", 0x0E);
         print("version - Show OS version\n", 0x0E);
         print("reboot  - Reboot system\n", 0x0E);
     }
-    else if(strcmp(input_buffer, "clear") == 0) {
+    else if(strcmp(command, "clear") == 0) {
         clear_screen();
     }
-    else if(strcmp(input_buffer, "version") == 0) {
+    else if(strcmp(command, "version") == 0) {
         print("LudvigOS v1.0\n", 0x0C);
     }
-    else if(strcmp(input_buffer, "reboot") == 0) {
+    else if(strcmp(command, "reboot") == 0) {
         print("Rebooting...\n", 0x0C);
         // Trigger reboot through keyboard controller
         asm volatile ("outb %0, $0x64" :: "a"((char)0xFE));
     }
     else {
         print("Unknown command: ", 0x0C);
-        print(input_buffer, 0x0C);
+        print(command, 0x0C);
         print("\nType 'help' for available commands\n", 0x0E);
     }
-
-    // Reset buffer
-    input_pos = 0;
-    for(int i = 0; i < 256; i++) input_buffer[i] = 0;
 }
 
-// Function to simulate typing
-void type_command(const char* command) {
-    // Print prompt
-    print("LudvigOS> ", 0x0A);
-
-    // Type command character by character
-    for(int i = 0; command[i] != '\0'; i++) {
-        input_buffer[input_pos++] = command[i];
-        print_char(command[i], 0x0F);
-
-        // Add delay between key presses (0.1 second)
-        for(volatile long j = 0; j < 10000000; j++);
-    }
-
-    // Press Enter
-    print_char('\n');
-    process_command();
-
-    // Add 3-second delay before next command
-    for(volatile long j = 0; j < 300000000; j++);
+// Simple delay function
+void delay() {
+    for(volatile long i = 0; i < 100000000; i++);
 }
 
 extern "C" void kmain();
@@ -219,12 +271,21 @@ extern "C" void kmain() {
     print("Commands will be executed every 3 seconds\n", 0x0B);
     print("========================================\n", 0x0B);
 
-    // Demo commands with 3-second delays
-    type_command("help");
-    type_command("version");
-    type_command("clear");
-    type_command("version");
-    type_command("reboot");
+    // Demo commands with delays
+    execute_command("help");
+    delay(); delay(); delay();
+
+    execute_command("version");
+    delay(); delay(); delay();
+
+    execute_command("clear");
+    delay(); delay(); delay();
+
+    execute_command("version");
+    delay(); delay(); delay();
+
+    execute_command("reboot");
+    delay(); delay(); delay();
 
     // Final message
     print("Demo completed. System halted.\n", 0x0C);
