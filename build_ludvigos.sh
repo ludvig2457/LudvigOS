@@ -85,7 +85,7 @@ check_and_install() {
 
 echo -e "${MAGENTA}
 ============================================================
-           LUDVIGOS GAMING EDITION v3.0
+           LUDVIGOS GAMING EDITION v1.1
            WITH WORKING SHELL & KEYBOARD!
 ============================================================
 ${RESET}"
@@ -478,7 +478,7 @@ void execute_command(const char* command) {
     }
     else if(strcmp(command, "neofetch") == 0) {
         print("OS: LudvigOS Gaming Edition x86_64\n", 0x0C);
-        print("Kernel: 3.0-LUDVIG-GAMING\n", 0x0C);
+        print("Kernel: 1.1-LUDVIG-GAMING\n", 0x0C);
         print("Uptime: 0 minutes\n", 0x0C);
         print("Shell: ludvig-sh 2.0\n", 0x0C);
         print("CPU: Intel i9-14900K @ 5.8GHz\n", 0x0C);
@@ -549,7 +549,7 @@ void show_boot_screen() {
     clear_screen();
     print("\n\n", 0x07);
     print("============================================================\n", 0x0C);
-    print("               LUDVIGOS GAMING EDITION v3.0\n", 0x0C);
+    print("               LUDVIGOS GAMING EDITION v1.1\n", 0x0C);
     print("============================================================\n\n", 0x0C);
     
     print("Features:\n", 0x0E);
